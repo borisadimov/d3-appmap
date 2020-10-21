@@ -9,6 +9,10 @@
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
   <link rel="stylesheet" href="./d3-appmap.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/5.16.0/d3.js" integrity="sha512-F63QPFxQ27mn9COmkZhSirC1pBNeVJ7MJJs4wtK6XfiAaH3WM1SfX6Sv2Pme/499+hafP0dALVZOADw4W2r6eQ==" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react@16/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"></script>
+  <!-- Don't use this in production: -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script type="text/javascript" defer src="./d3-appmap.js" />
   </script>
 
@@ -23,6 +27,7 @@
         <h3 class="text-muted">appmap-d3</h3>
       </nav>
     </div>
+    <div id="react-root"></div>
     <div id="component-diagram">
     </div>
     <div id="flow-view">
@@ -32,6 +37,128 @@
   </div>
 </body>
 
+
+<script type="text/babel">
+  const classReducer = (state,action)=>{
+    switch (action.type) {
+      case 'name':
+        return {...state, name:action.value, error: null}
+      case 'parent':
+        return {...state, parent:action.value, error: null}
+      case 'callsTo':
+        return {...state, callsTo:action.value, error: null}
+      case 'calledBy':
+        return {...state, calledBy:action.value, error: null}
+      case 'error':
+        return {...state, error: action.value}
+      default:
+        return state;
+    }
+  }
+
+  const ClassForm = ()=>{
+    const data = window.componentDiagramModel
+    const classes = Object.keys(data.class_package)
+    const [formState,dispatch] = React.useReducer(classReducer,{name:"New class",parent:data.packages[0],callsTo:[],calledBy:[]}) 
+    const handleCreate= ()=>{
+        const new_class = formState.name;
+        if(!classes.includes(new_class)){
+         
+      }else{
+        dispatch({type:'error',value:"There is already a class with that name"})
+      }
+
+    }
+    return (
+      <div className="form">
+        <h2>Create class</h2>
+        {formState.error && <span className="error">{formState.error}</span>}
+        <label>Class name</label>
+        <input type="text" value={formState.name} onChange={(e)=>dispatch({type:'name',value:e.target.value})}/>
+        <label>Parent package</label>
+        <select onChange={e=>{
+          dispatch({type:'parent',value:e.target.value})
+        }}>
+          {data.packages.map(p=> <option key={p} value={p}>{p}</option>)}
+        </select>
+        <label>Calls to</label>
+        <select multiple onChange={e=>{
+          dispatch({type:'callsTo',value:Array.from(e.target.selectedOptions).map(option=>option.value)})
+        }}>
+          {classes.map(p=> <option key={p} value={p}>{p}</option>)}
+        </select>
+        <label>Called by</label>
+        <select multiple onChange={e=>{
+          dispatch({type:'calledBy',value:Array.from(e.target.selectedOptions).map(option=>option.value)})
+        }}>
+          {classes.map(p=> <option key={p} value={p}>{p}</option>)}
+        </select>
+        
+        <button onClick={handleCreate}>Create</button>
+      </div>) 
+  }
+
+  const packageReducer = (state,action)=>{
+    switch (action.type) {
+      case 'name':
+        return {...state, name:action.value, error: null}
+      case 'error':
+        return {...state, error: action.value}
+      default:
+        break;
+    }
+  }
+
+  const PackageForm = ()=>{
+    const data = window.componentDiagramModel
+    const [formState,dispatch] = React.useReducer(packageReducer,{name:"New package",clasess:[]}) 
+    const handleCreate= ()=>{
+        const new_package = formState.name;
+        if(!data.packages.includes(new_package)){
+          window.componentDiagramModel.packages.push(new_package);
+          window.componentDiagramModel.package_classes[new_package]=[];
+          window.componentDiagramModel.package_calls[new_package]=[];
+          window.diagram.render(componentDiagramModel);
+      }else{
+        dispatch({type:'error',value:"There is already a package with that name"})
+      }
+
+    }
+    return (
+      <div className="form">
+        <h2>Create Package</h2>
+        {formState.error && <span className="error">{formState.error}</span>}
+        <label>Package name</label>
+        <input type="text" value={formState.name} onChange={(e)=>dispatch({type:'name',value:e.target.value})}/>
+        <button onClick={handleCreate}>Create</button>
+      </div>)
+  }
+
+  const Root = ()=>{
+    const [mode,setMode] = React.useState("class");
+    return (<div className="container">
+        <div className="mode-buttons">
+          <button onClick={()=>setMode("package")}>
+            Create Package
+          </button>
+          <button onClick={()=>setMode("class")}>
+            Create Class  
+          </button>
+        </div>
+        <div>
+          {mode === "package" && <PackageForm/>}
+          {mode === "class" && <ClassForm/>}
+        </div>
+      </div>)
+  }
+
+
+  ReactDOM.render(
+    <Root/>,
+    document.getElementById('react-root')
+  );
+
+</script>
 
 <script type="text/javascript">
   function aggregateEvents(events, classMap) {
@@ -47,17 +174,19 @@
   }
 
   function onLoad() {
-    {
+   // {
+      
       var diagram = new Appmap.ComponentDiagram('#component-diagram');
       diagram.render(window.componentDiagramModel);
-    }
-    {
-      const callTree = aggregateEvents(window.scenarioData.data.events,
-        window.scenarioData.data.classMap);
+      window.diagram = diagram;
+    //}
+    // {
+    //   const callTree = aggregateEvents(window.scenarioData.data.events,
+    //     window.scenarioData.data.classMap);
 
-      var diagram = new Appmap.Timeline('#timeline');
-      diagram.render(callTree);
-    }
+    //   var diagram = new Appmap.Timeline('#timeline');
+    //   diagram.render(callTree);
+    // }
   }
 
   document.addEventListener('DOMContentLoaded', onLoad, false);

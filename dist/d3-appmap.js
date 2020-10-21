@@ -12304,7 +12304,7 @@
 	  componentDiagram.graphGroup
 	    .selectAll('g.node')
 	    .on('click', (id) => componentDiagram.highlight(id))
-	    .on('dblclick', (id) => componentDiagram.focus(id));
+	    .on('dblclick', (id) => componentDiagram.expand(id));
 
 	  componentDiagram.labelGroup = componentDiagram.graphGroup
 	    .append('g')
@@ -12368,7 +12368,6 @@
 	    this.graph = new dagreD3.graphlib.Graph()
 	      .setGraph({ rankdir: 'LR' })
 	      .setDefaultEdgeLabel(function() { return {}; });
-
 	    const { nodes, edges } = mixedDiagram(this.currentDiagramModel, this.targetCount);
 	    nodes.forEach((node) => setNode(this.graph, node));
 	    edges.forEach(([start, end]) => {
