@@ -63,10 +63,25 @@
     const handleCreate= ()=>{
         const new_class = formState.name;
         if(!classes.includes(new_class)){
-         
-      }else{
-        dispatch({type:'error',value:"There is already a class with that name"})
-      }
+          // set parent connections 
+          data.class_package[new_class] = formState.parent
+          data.package_classes[formState.parent].push(new_class)
+          // placeholder location
+          data.class_locations[new_class] = ""
+          // set forth and back connections
+          data.class_calls[new_class] = new Set(formState.callsTo)
+          data.class_callers[new_class] = new Set(formState.calledBy)
+          formState.calledBy.forEach(caller=>{
+            // add new class to class_calls of caller
+            data.class_calls[caller].push(new_class)
+            // get parent package of caller
+            const caller_parent = data.class_package[caller]
+            data.package_calls[caller_parent].push(formState.parent)
+          })
+          window.diagram.render(componentDiagramModel)
+        }else{
+          dispatch({type:'error',value:"There is already a class with that name"})
+        }
 
     }
     return (
@@ -116,8 +131,8 @@
         const new_package = formState.name;
         if(!data.packages.includes(new_package)){
           window.componentDiagramModel.packages.push(new_package);
-          window.componentDiagramModel.package_classes[new_package]=[];
-          window.componentDiagramModel.package_calls[new_package]=[];
+          window.componentDiagramModel.package_classes[new_package]=new Set();
+          window.componentDiagramModel.package_calls[new_package]=new Set();
           window.diagram.render(componentDiagramModel);
       }else{
         dispatch({type:'error',value:"There is already a package with that name"})
