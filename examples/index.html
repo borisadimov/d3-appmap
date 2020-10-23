@@ -9,18 +9,57 @@
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
   <link rel="stylesheet" href="./d3-appmap.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/5.16.0/d3.js" integrity="sha512-F63QPFxQ27mn9COmkZhSirC1pBNeVJ7MJJs4wtK6XfiAaH3WM1SfX6Sv2Pme/499+hafP0dALVZOADw4W2r6eQ==" crossorigin="anonymous"></script>
+    <!-- Don't use this in production: -->
   <script src="https://unpkg.com/react@16/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"></script>
-  <!-- Don't use this in production: -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script type="text/javascript" defer src="./d3-appmap.js" />
+  <script type="text/javascript" src="./browser-scss.min.js"></script>
+  <script type="text/javascript" defer src="./d3-appmap.js" ></script>
   </script>
-
   <title>appmap-d3</title>
-
 </head>
 
 <body>
+  <style type="text/scss" lang="scss">
+    #react-root{
+      background-color: lightgrey;
+      margin-bottom: 20px;
+      .form-container{
+        padding: 0;
+        max-width: 100%;
+      }
+      .mode-buttons{
+        display:flex;
+        flex-direction:row;
+        & > button{
+          margin:5px;
+        }
+      }
+      .form{
+        padding: 5px;
+        border: 1px solid black;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        label{
+          width:fit-content;
+        }
+        input{
+          width:200px;
+        }
+        select{
+          width: 400px;
+        }
+
+        button{
+          width: 200px;
+          margin:5px;
+          align-self: center;
+        }
+      }
+    }
+    
+  </style>
   <div class="container">
     <div class="header clearfix">
       <nav>
@@ -56,13 +95,23 @@
     }
   }
 
-  const ClassForm = ()=>{
+  const ClassForm = ({id})=>{
+    const isCreating = !id
     const data = window.componentDiagramModel
     const classes = Object.keys(data.class_package)
-    const [formState,dispatch] = React.useReducer(classReducer,{name:"New class",parent:data.packages[0],callsTo:[],calledBy:[]}) 
+    const [formState,dispatch] = React.useReducer(classReducer,
+    {
+      name:id ?? 'New Class',
+      parent:data.class_package[id] ?? data.packages[0],
+      callsTo:data.class_calls[id] ?? [],
+      calledBy: data.class_callers[id] ??[]
+    }) 
     const handleCreate= ()=>{
         const new_class = formState.name;
-        if(!classes.includes(new_class)){
+        const old_class = id
+        const old_package = data.class_package[old_class]
+        if(!classes.includes(new_class) || new_class === old_class ){
+          if(isCreating){
           // set parent connections 
           data.class_package[new_class] = formState.parent
           data.package_classes[formState.parent].push(new_class)
@@ -78,6 +127,44 @@
             const caller_parent = data.class_package[caller]
             data.package_calls[caller_parent].push(formState.parent)
           })
+          } else {
+            //package_clasess
+            data.package_classes[old_package].splice(data.package_classes[old_package].indexOf(old_class),1)
+            data.package_classes[formState.parent].push(new_class)
+            // class_package
+            delete data.class_package[old_class]
+            data.class_package[new_class]=formState.parent
+            // rename class_calls and class_callers entries
+            Object.values(data.class_calls).forEach(arr =>arr[arr.indexOf(old_class)]=new_class)
+            Object.values(data.class_callers).forEach(arr =>arr[arr.indexOf(old_class)]=new_class)
+            // rename class calls key
+            const old_class_calls = data.class_calls[old_class] // if class calls itself, this already has new class name
+            data.class_calls[old_class] = null
+            delete data.class_calls[old_class]
+            // goto every called class and edit their class_callers
+            old_class_calls.forEach(c=>{
+              data.class_callers[c].splice(data.class_callers[c].indexOf(new_class),1);
+            })
+            formState.callsTo.forEach( c=>{
+              data.class_callers[c].push(new_class);
+            }) 
+            // rename class callers key
+            const old_class_callers = data.class_callers[old_class] 
+            data.class_calls[old_class] = null
+            delete data.class_calls[old_class]
+            // new called classes
+            data.class_calls[new_class] = [...formState.callsTo]
+            data.class_callers[new_class] = [...formState.calledBy]
+            // goto every class caller and edit their class_calls
+            old_class_callers.forEach(c=>{
+              data.class_calls[c].splice(data.class_calls[c].indexOf(new_class),1);
+            })
+            formState.calledBy.forEach( c=>{
+              data.class_calls[c].push(new_class);
+            }) 
+
+          }
+
           window.diagram.render(componentDiagramModel)
         }else{
           dispatch({type:'error',value:"There is already a class with that name"})
@@ -86,7 +173,7 @@
     }
     return (
       <div className="form">
-        <h2>Create class</h2>
+        <h2>{isCreating ? "Create" : "Edit"} class</h2>
         {formState.error && <span className="error">{formState.error}</span>}
         <label>Class name</label>
         <input type="text" value={formState.name} onChange={(e)=>dispatch({type:'name',value:e.target.value})}/>
@@ -99,17 +186,18 @@
         <label>Calls to</label>
         <select multiple onChange={e=>{
           dispatch({type:'callsTo',value:Array.from(e.target.selectedOptions).map(option=>option.value)})
-        }}>
+        }} value={formState.callsTo}>
           {classes.map(p=> <option key={p} value={p}>{p}</option>)}
         </select>
         <label>Called by</label>
         <select multiple onChange={e=>{
           dispatch({type:'calledBy',value:Array.from(e.target.selectedOptions).map(option=>option.value)})
-        }}>
-          {classes.map(p=> <option key={p} value={p}>{p}</option>)}
+        }} 
+        value={formState.calledBy}>
+          {classes.map(p=> <option key={p} value={p} >{p}</option>)}
         </select>
         
-        <button onClick={handleCreate}>Create</button>
+        <button onClick={handleCreate}>Save</button>
       </div>) 
   }
 
@@ -124,16 +212,42 @@
     }
   }
 
-  const PackageForm = ()=>{
+  const PackageForm = ({id})=>{
+    const isCreating = !id
     const data = window.componentDiagramModel
-    const [formState,dispatch] = React.useReducer(packageReducer,{name:"New package",clasess:[]}) 
+    const [formState,dispatch] = React.useReducer(packageReducer,{name:id ?? "New package",clasess:[]}) 
     const handleCreate= ()=>{
         const new_package = formState.name;
+        const old_package = id
         if(!data.packages.includes(new_package)){
-          window.componentDiagramModel.packages.push(new_package);
-          window.componentDiagramModel.package_classes[new_package]=new Set();
-          window.componentDiagramModel.package_calls[new_package]=new Set();
-          window.diagram.render(componentDiagramModel);
+          if(isCreating){
+            data.packages.push(new_package);
+            data.package_classes[new_package]=new Set();
+            data.componentDiagramModel.package_calls[new_package]=new Set();
+          }
+          else if(new_package!==old_package){
+            // edit packges
+            data.packages[data.packages.indexOf(old_package)]=new_package
+            // edit class_package
+            for (const key in data.class_package) {
+              if (data.class_package.hasOwnProperty(key)) {
+                if(data.class_package[key] === old_package){
+                  data.class_package[key] = new_package
+                }
+              }
+            }
+            // edit package_calls
+            Object.values(data.package_calls).map(arr =>arr[arr.indexOf(old_package)]=new_package)
+            data.package_calls[new_package]=data.package_calls[old_package]
+            data.package_calls[old_package] = null
+            delete data.package_calls[old_package]
+            // edit package_classes
+            data.package_classes[new_package]=data.package_classes[old_package]
+            data.package_classes[old_package] = null
+            // edit controller_packages
+            data.controller_packages[data.controller_packages.indexOf(old_package)]=new_package
+          }
+          window.diagram.render(data);
       }else{
         dispatch({type:'error',value:"There is already a package with that name"})
       }
@@ -141,29 +255,55 @@
     }
     return (
       <div className="form">
-        <h2>Create Package</h2>
+        <h2>{isCreating ? "Create" : 'Edit'} Package</h2>
         {formState.error && <span className="error">{formState.error}</span>}
         <label>Package name</label>
         <input type="text" value={formState.name} onChange={(e)=>dispatch({type:'name',value:e.target.value})}/>
-        <button onClick={handleCreate}>Create</button>
+        <button onClick={handleCreate}>Save</button>
       </div>)
   }
 
   const Root = ()=>{
-    const [mode,setMode] = React.useState("class");
-    return (<div className="container">
+    const [diagramRender,handleRerender]=React.useState({});
+     React.useEffect(()=>{
+      const cb =()=>handleRerender({})
+      window.diagram.on('postrender',cb);
+
+    },[])
+    const [mode,setMode] = React.useState({type:"class",id:null});
+
+    const handleClick = React.useCallback((target)=>{
+      const e = d3.event
+      if(e.button ===2){
+        e.preventDefault()
+        for (let index = 0; index < e.path.length; index++) {
+          const element = e.path[index];
+          if(element.classList.contains('package')){
+            setMode({type:"package",id:element.id})
+            break;
+          }
+          else if(element.classList.contains('class')){
+            setMode({type:"class",id:element.id})
+            break;
+          }
+        }
+      }
+    },[])
+    React.useEffect(()=>{
+      window.diagram.graphGroup.on('contextmenu',handleClick)
+     
+    },[diagramRender])
+    return (<div className="form-container">
         <div className="mode-buttons">
-          <button onClick={()=>setMode("package")}>
+          <button onClick={()=>setMode({type:"package",id:null})}>
             Create Package
           </button>
-          <button onClick={()=>setMode("class")}>
+          <button onClick={()=>setMode({type:"class",id:null})}>
             Create Class  
           </button>
         </div>
-        <div>
-          {mode === "package" && <PackageForm/>}
-          {mode === "class" && <ClassForm/>}
-        </div>
+          {mode.type === "package" && <PackageForm key={mode.id} id={mode.id} />}
+          {mode.type === "class" && <ClassForm key={mode.id} id={mode.id}/>}
       </div>)
   }
 
