@@ -67,9 +67,16 @@
         <h3 class="text-muted">appmap-d3</h3>
       </nav>
     </div>
-    <span class="text-muted" >Double click to expand node</span>
+    <div>
+    <span>Usage notes:</span>
+    <ul>
+      <li>Left click to expand nodes</li>
+      <li>Right click(context menu) on node to edit</li>
+      <li>Packages without classes are not rendered</li>
+    </ul>
+    </div>
     <br/>
-    <span class="text-muted" >Right click(context menu) on node to edit</span>
+    <span class="text-muted" ></span>
     <div id="react-root"></div>
     <div id="component-diagram">
     </div>
@@ -82,6 +89,8 @@
 
 
 <script type="text/babel" data-presets="env,react">
+  // this code is transpiled at runtime but thats good enough for hacking around
+  // this can be moved to webpack prject very easily
   const classReducer = (state,action)=>{
     switch (action.type) {
       case 'name':
@@ -132,8 +141,6 @@
             data.package_calls[caller_parent].push(formState.parent)
           })
           } else {
-            //rename formState
-
             //package_clasess
             data.package_classes[old_package].splice(data.package_classes[old_package].indexOf(old_class),1)
             data.package_classes[formState.parent].push(new_class)
@@ -279,11 +286,13 @@
   }
 
   const Root = ()=>{
+    // becuase source of though is not in react tree
+    // we have to trigger rerender manualy by
+    // passing new {}
     const [diagramRender,handleRerender]=React.useState({});
      React.useEffect(()=>{
       const cb =()=>handleRerender({})
       window.diagram.on('postrender',cb);
-
     },[])
     const [mode,setMode] = React.useState({type:"class",id:null});
 
@@ -305,18 +314,22 @@
         window.scrollTo(0,0);
       }
     },[])
+
+    // we reapplt listeneres on rerender
+    // there is no off method so we don't need to clear them 
+
     React.useEffect(()=>{
       window.diagram.graphGroup.on('contextmenu',handleClick) 
     },[diagramRender])
     return (<div className="container">
         <nav className="row">
           <div className="col-md-2">
-            <button className="btn" onClick={()=>setMode({type:"package",id:null})}>
+            <button className="btn w-100" onClick={()=>setMode({type:"package",id:null})}>
               Create Package
             </button>
           </div>
-          <div className="col-md-2">
-          <button className="btn" onClick={()=>setMode({type:"class",id:null})}>
+          <div className="col-md-1">
+          <button className="btn w-100" onClick={()=>setMode({type:"class",id:null})}>
             Create Class  
           </button>
           </div>
